@@ -121,6 +121,23 @@ cluster_type:
       name: foo
       dns_lookup_family: AUTO
 )EOF";
+
+  const std::string tls_yaml_config_ = TestEnvironment::substitute(R"EOF(
+name: name
+connect_timeout: 0.25s
+cluster_type:
+  name: envoy.clusters.dynamic_forward_proxy
+  typed_config:
+    "@type": type.googleapis.com/envoy.config.cluster.dynamic_forward_proxy.v2alpha.ClusterConfig
+    dns_cache_config:
+      name: foo
+      dns_lookup_family: AUTO
+tls_context:
+  common_tls_context:
+    validation_context:
+      trusted_ca:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/ca_cert.pem"
+)EOF");
 };
 
 // Basic flow of the cluster including adding hosts and removing them.
@@ -160,6 +177,15 @@ TEST_F(ClusterTest, BasicFlow) {
   EXPECT_EQ("2.3.4.5:0", lb_->chooseHost(setHostAndReturnContext("host1"))->address()->asString());
   refreshLb();
   EXPECT_EQ(nullptr, lb_->chooseHost(setHostAndReturnContext("host1")));
+}
+
+// fixfix
+TEST_F(ClusterTest, CustomTls) {
+  initialize(tls_yaml_config_, false);
+  makeTestHost("host1", "1.2.3.4");
+  InSequence s;
+
+  update_callbacks_->onDnsHostAddOrUpdate("host1", host_map_["host1"]);
 }
 
 // Various invalid LB context permutations in case the cluster is used outside of HTTP.
